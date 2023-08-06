@@ -10,10 +10,11 @@ from torch.distributions.dirichlet import Dirichlet
 import torch
 import cvxopt
 from cvxopt import matrix,solvers
-from .language_utils import shake_process_x,shake_process_y,sent_process_x,get_word_emb_arr
 import json
 from tqdm import tqdm
 import torch.utils.data as Data
+
+from .language_utils import shake_process_x,shake_process_y,sent_process_x,get_word_emb_arr
 
 
 
