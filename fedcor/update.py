@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 import torch.nn.functional as F
 import copy
 
-from utils import average_weights
+from .utils import average_weights
 
 import numpy as np
 from tqdm import tqdm

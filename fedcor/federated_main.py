@@ -14,20 +14,16 @@ import torch
 
 
 
-from options import args_parser
-from update import LocalUpdate,test_inference,train_federated_learning,federated_test_idx
-from models import MLP, NaiveCNN, BNCNN, ResNet,RNN
-from utils import get_dataset, average_weights, exp_details,setup_seed
-from mvnt import MVN_Test
-import GPR
-from GPR import Kernel_GPR
+from .options import args_parser
+from .update import LocalUpdate,test_inference,train_federated_learning,federated_test_idx
+from .models import MLP, NaiveCNN, BNCNN, ResNet,RNN
+from .utils import get_dataset, average_weights, exp_details,setup_seed
+from .mvnt import MVN_Test
+from .GPR import Kernel_GPR, Matrix_GPR
 
 
 
-
-
-
-if __name__ == '__main__':
+def fl_main():
     os.environ["OUTDATED_IGNORE"]='1'
     start_time = time.time()
     # define paths
@@ -119,7 +115,7 @@ if __name__ == '__main__':
                 gpr = Kernel_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device,
                                     dimension = args.dimension,kernel=GPR.SE_Kernel)
             else:
-                gpr = GPR.Matrix_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device)
+                gpr = Matrix_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device)
             gpr.to(gpr_device)
 
         # copy weights
@@ -346,6 +342,9 @@ if __name__ == '__main__':
             with open(file_name+'/MVN/{}/Sigma.pkl'.format(seed), 'wb') as f:
                 pickle.dump([sigma,sigma_gt],f)
 
-        
+
+
+if __name__ == '__main__':
+    fl_main()
         
         

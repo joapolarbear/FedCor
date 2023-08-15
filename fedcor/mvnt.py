@@ -6,8 +6,8 @@ from torch.multiprocessing import Process,Manager
 import torch.multiprocessing
 # import pingouin as pg
 
-from utils import average_weights
-from update import federated_train_all,federated_test_idx
+from .utils import average_weights
+from .update import federated_train_all,federated_test_idx
 
 def MVN_Sampler(args,global_model,init_loss,local_weights,avg_idxs,test_idxs,train_dataset,user_groups,mvn_samples,count):
     avg_model=copy.deepcopy(global_model)
