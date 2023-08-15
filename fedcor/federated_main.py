@@ -19,7 +19,7 @@ from .update import LocalUpdate,test_inference,train_federated_learning,federate
 from .models import MLP, NaiveCNN, BNCNN, ResNet,RNN
 from .utils import get_dataset, average_weights, exp_details,setup_seed
 from .mvnt import MVN_Test
-from .GPR import Kernel_GPR, Matrix_GPR
+from .GPR import Kernel_GPR, Matrix_GPR, Poly_Kernel, SE_Kernel
 
 AVAILABLE_WANDB = True
 try:
@@ -98,6 +98,7 @@ def fl_main():
     if AVAILABLE_WANDB:
         args.num_available = None
         args.total_num_clients = args.num_users
+        args.num_clients_per_round = int(args.frac * args.num_users)
         args.method = "FedCor"
         args.comment = ""
         wandb.init(
@@ -140,13 +141,25 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
     # Build GP
     if args.gpr:
         if args.kernel=='Poly':
-            gpr = Kernel_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device,
-                                dimension = args.dimension,kernel=GPR.Poly_Kernel,order = 1,Normalize = args.poly_norm)
+            gpr = Kernel_GPR(args.num_users, loss_type=args.train_method,
+                            reusable_history_length=args.group_size,
+                            gamma=args.GPR_gamma,
+                            device=gpr_device,
+                            dimension=args.dimension,
+                            kernel=Poly_Kernel,
+                            order=1, Normalize=args.poly_norm)
         elif args.kernel=='SE':
-            gpr = Kernel_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device,
-                                dimension = args.dimension,kernel=GPR.SE_Kernel)
+            gpr = Kernel_GPR(args.num_users, loss_type=args.train_method,
+                            reusable_history_length=args.group_size,
+                            gamma=args.GPR_gamma,
+                            device=gpr_device,
+                            dimension=args.dimension,
+                            kernel=SE_Kernel)
         else:
-            gpr = Matrix_GPR(args.num_users,loss_type= args.train_method,reusable_history_length=args.group_size,gamma=args.GPR_gamma,device=gpr_device)
+            gpr = Matrix_GPR(args.num_users, loss_type=args.train_method,
+                            reusable_history_length=args.group_size,
+                            gamma=args.GPR_gamma,
+                            device=gpr_device)
         gpr.to(gpr_device)
 
     # copy weights
