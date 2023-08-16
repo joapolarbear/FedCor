@@ -9,6 +9,9 @@ import time
 import pickle
 import numpy as np
 from tqdm import tqdm
+import sys
+import signal
+import atexit
 
 import torch
 
@@ -123,11 +126,43 @@ def fl_main():
         args = copy.deepcopy(gargs)# recover the args
         _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time)
         return
+
+def select(args, selected_num, epoch, gpr, weights):
+    # Client Selection
+    if args.gpr and epoch > args.warmup:
+        # FedCor
+        idxs_users = gpr.Select_Clients(selected_num, args.epsilon_greedy,
+                                        weights, args.dynamic_C,
+                                        args.dynamic_TH)
+        print("GPR Chosen Clients:",idxs_users)
+    elif args.afl:
+        # AFL
+        delete_num = int(args.alpha1 * args.num_users)
+        sel_num = int((1 - args.alpha3) * selected_num)
+        tmp_value = np.vstack([np.arange(args.num_users), AFL_Valuation])
+        tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
+        prob = np.exp(args.alpha2 * tmp_value[1, delete_num:])
+        prob = prob/np.sum(prob)
+        sel1 = np.random.choice(np.array(tmp_value[0, delete_num:], dtype=np.int64), 
+                                sel_num, replace=False, p=prob)
+        remain = set(np.arange(args.num_users)) - set(sel1)
+        sel2 = np.random.choice(list(remain), selected_num-sel_num, replace = False)
+        idxs_users = np.append(sel1, sel2)
+    elif args.power_d:
+        # Power-of-D-choice
+        A = np.random.choice(range(args.num_users), args.d, replace=False, p=weights)
+        idxs_users = A[np.argsort(np.array(gt_global_losses[-1])[A])[-selected_num:]]
+    else:
+        # Random selection
+        idxs_users = np.random.choice(range(args.num_users), selected_num, replace=False)
+    
+    return idxs_users
         
 def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
     print("Start with Random Seed: {}".format(seed))
     # load dataset and user groups
-    train_dataset, test_dataset, user_groups, user_groups_test,weights = get_dataset(args,seed)
+    train_dataset, test_dataset, user_groups, user_groups_test, \
+        weights = get_dataset(args,seed)
     # weights /=np.sum(weights)
     if seed is not None:
         setup_seed(seed)
@@ -161,6 +196,8 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
                             gamma=args.GPR_gamma,
                             device=gpr_device)
         gpr.to(gpr_device)
+    else:
+        gpr = None
 
     # copy weights
     global_weights = global_model.state_dict()
@@ -190,6 +227,17 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
 
     sigma = []
     sigma_gt=[]
+    
+    def signal_handler(*_args):
+        print()
+        select_cnt = np.array([0] * args.num_users)
+        for idx in np.array(chosen_clients).flatten():
+            select_cnt[idx] += 1
+        print(select_cnt)
+        sys.exit(0)
+    # signal.signal(signal.SIGINT, signal_handler)
+    # signal.signal(signal.SIGTERM, signal_handler)
+    atexit.register(signal_handler)
 
     # Test the global model before training
     list_acc, list_loss = federated_test_idx(args, global_model,
@@ -211,39 +259,13 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
             args.lr *= args.lr_decay
             
         wandb_record = {}
-                
-        m = max(int(args.frac * args.num_users), 1)
-
-        # Client Selection
-        if args.gpr and epoch > args.warmup:
-            # FedCor
-            idxs_users = gpr.Select_Clients(m, args.epsilon_greedy,
-                                            weights, args.dynamic_C,
-                                            args.dynamic_TH)
-            print("GPR Chosen Clients:",idxs_users)
-        elif args.afl:
-            # AFL
-            delete_num = int(args.alpha1 * args.num_users)
-            sel_num = int((1 - args.alpha3) * m)
-            tmp_value = np.vstack([np.arange(args.num_users), AFL_Valuation])
-            tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
-            prob = np.exp(args.alpha2 * tmp_value[1, delete_num:])
-            prob = prob/np.sum(prob)
-            sel1 = np.random.choice(np.array(tmp_value[0, delete_num:], dtype=np.int64), 
-                                    sel_num, replace=False, p=prob)
-            remain = set(np.arange(args.num_users)) - set(sel1)
-            sel2 = np.random.choice(list(remain), m-sel_num, replace = False)
-            idxs_users = np.append(sel1, sel2)
-        elif args.power_d:
-            # Power-of-D-choice
-            A = np.random.choice(range(args.num_users), args.d, replace=False, p=weights)
-            idxs_users = A[np.argsort(np.array(gt_global_losses[-1])[A])[-m:]]
-        else:
-            # Random selection
-            idxs_users = np.random.choice(range(args.num_users), m, replace=False)
         
+        # Client Selection
+        selected_num = max(int(args.frac * args.num_users), 1)
+        idxs_users = select(args, selected_num, epoch, gpr, weights)
         chosen_clients.append(idxs_users)
 
+        # Train models
         for idx in idxs_users:
             local_model = copy.deepcopy(global_model)
             local_update = LocalUpdate(args=args, dataset=train_dataset,
@@ -289,7 +311,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
         
         # test prediction accuracy of GP model
         if args.gpr and epoch > args.warmup:
-            test_idx = np.random.choice(range(args.num_users), m, replace=False)
+            test_idx = np.random.choice(range(args.num_users), selected_num, replace=False)
             test_data = np.concatenate([np.expand_dims(list(range(args.num_users)), 1),
                                         np.expand_dims(np.array(gt_global_losses[-1]) - np.array(gt_global_losses[-2]), 1),
                                         np.ones([args.num_users,1])], 1)
@@ -317,7 +339,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
                 elif epoch>args.warmup and epoch % args.GPR_interval == 0:# normal and optimization round
                     gpr.Reset_Discount()
                     print("Training with Random Selection For GPR Training:")
-                    random_idxs_users = np.random.choice(range(args.num_users), m, replace=False)
+                    random_idxs_users = np.random.choice(range(args.num_users), selected_num, replace=False)
                     gpr_acc, gpr_loss = train_federated_learning(args, epoch, copy.deepcopy(global_model), 
                                                                 random_idxs_users, train_dataset, user_groups)
                     gpr.Update_Training_Data([np.arange(args.num_users),], [np.array(gpr_loss)-np.array(gt_global_losses[-1]),], epoch=epoch)
@@ -371,8 +393,8 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
 
     # save the training records:
     with open(file_name+'_{}.pkl'.format(seed), 'wb') as f:
-        pickle.dump([train_loss, train_accuracy,chosen_clients,
-                    weights,None if not args.gpr else gpr.state_dict(),
+        pickle.dump([train_loss, train_accuracy, chosen_clients,
+                    weights, None if not args.gpr else gpr.state_dict(),
                     gt_global_losses,test_accuracy], f)
     
     if args.mvnt:
