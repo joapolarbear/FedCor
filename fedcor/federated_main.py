@@ -18,7 +18,7 @@ import torch
 
 
 from .options import args_parser
-from .update import LocalUpdate,test_inference,train_federated_learning,federated_test_idx
+from .update import LocalUpdate, test_inference, train_federated_learning, federated_test_idx
 from .models import MLP, NaiveCNN, BNCNN, ResNet,RNN
 from .utils import get_dataset, average_weights, exp_details,setup_seed
 from .mvnt import MVN_Test
@@ -261,46 +261,50 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
         wandb_record = {}
         
         # Client Selection
-        selected_num = max(int(args.frac * args.num_users), 1)
-        idxs_users = select(args, selected_num, epoch, gpr, weights)
-        chosen_clients.append(idxs_users)
+        if True:
+            selected_num = max(int(args.frac * args.num_users), 1)
+            idxs_users = select(args, selected_num, epoch, gpr, weights)
+            chosen_clients.append(idxs_users)
 
-        # Train models
-        for idx in idxs_users:
-            local_model = copy.deepcopy(global_model)
-            local_update = LocalUpdate(args=args, dataset=train_dataset,
-                                    idxs=user_groups[idx], global_round = epoch)
-            w, test_loss, init_test_loss = local_update.update_weights(model=local_model)
-            
-            local_states[idx] = copy.deepcopy(local_model.Get_Local_State_Dict())
-            local_weights[idx]=copy.deepcopy(w)
-            epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
-            epoch_local_losses.append(test_loss)
+        if True:
+            # Train models
+            for idx in idxs_users:
+                local_model = copy.deepcopy(global_model)
+                local_update = LocalUpdate(args=args, dataset=train_dataset,
+                                        idxs=user_groups[idx], global_round = epoch)
+                w, test_loss, init_test_loss = local_update.update_weights(model=local_model)
+                
+                local_states[idx] = copy.deepcopy(local_model.Get_Local_State_Dict())
+                local_weights[idx] = copy.deepcopy(w)
+                epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
+                epoch_local_losses.append(test_loss)
 
-        # update global weights
-        if args.global_average:
-            global_weights = average_weights(local_weights,omega=None)
-        else:
-            global_weights = average_weights(local_weights[idxs_users],omega=None)
+        if True:
+            # update global weights
+            if args.global_average:
+                global_weights = average_weights(local_weights,omega=None)
+            else:
+                global_weights = average_weights(local_weights[idxs_users],omega=None)
 
-        for i in range(args.num_users):
-            local_weights[i] = copy.deepcopy(global_weights)
-        # update global weights
-        global_model.load_state_dict(global_weights)
+            for i in range(args.num_users):
+                local_weights[i] = copy.deepcopy(global_weights)
+            # update global weights
+            global_model.load_state_dict(global_weights)
 
         if args.afl:
             AFL_Valuation[idxs_users] = np.array(epoch_global_losses)*np.sqrt(weights[idxs_users]*len(train_dataset))
         local_losses.append(epoch_local_losses)
 
-        # dynamic mu for FedProx
         loss_avg = sum(epoch_local_losses) / len(epoch_local_losses)
+        train_loss.append(loss_avg)
+        
+        # dynamic mu for FedProx
         if args.dynamic_mu and epoch > 0:
             if loss_avg > loss_prev:
                 args.mu += init_mu*0.1
             else:
                 args.mu = max([args.mu-init_mu*0.1,0.0])
         loss_prev = loss_avg
-        train_loss.append(loss_avg)
 
         # calculate test accuracy over all users
         list_acc, list_loss = federated_test_idx(args, global_model,

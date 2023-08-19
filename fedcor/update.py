@@ -142,7 +142,12 @@ class LocalUpdate(object):
         return loss
 
 
-def train_federated_learning(args,epoch,global_model,idxs_users,train_dataset,user_groups,verbose = False):
+def train_federated_learning(args, epoch, global_model, idxs_users,
+                            train_dataset, user_groups,verbose=False):
+    ''' Federated training with selected clients and return the 
+        test resutls, including the average accuracy and the list
+        of loss on each client's test data
+    '''
     device = 'cuda:'+args.gpu if args.gpu else 'cpu'
     local_weights = []
     for _ in range(args.num_users):
@@ -154,8 +159,8 @@ def train_federated_learning(args,epoch,global_model,idxs_users,train_dataset,us
         local_update = LocalUpdate(args=args, dataset=train_dataset,
                                     idxs=user_groups[idx] ,global_round = epoch,verbose=verbose)
         
-        w,_,_ = local_update.update_weights(model=local_model)
-        local_weights[idx]=copy.deepcopy(w)
+        w, _, _ = local_update.update_weights(model=local_model)
+        local_weights[idx] = copy.deepcopy(w)
 
     # update global weights
     if args.global_average:
@@ -171,11 +176,11 @@ def train_federated_learning(args,epoch,global_model,idxs_users,train_dataset,us
     for idx in range(args.num_users):
         local_model = copy.deepcopy(global_model)
         local_update = LocalUpdate(args=args, dataset=train_dataset,
-                                    idxs=user_groups[idx],verbose=verbose)
+                                    idxs=user_groups[idx], verbose=verbose)
         acc, loss = local_update.inference(model=local_model)
         list_acc.append(acc)
         list_loss.append(loss)
-    return sum(list_acc)/len(list_acc),list_loss
+    return sum(list_acc)/len(list_acc), list_loss
 
 def federated_train_all(args,global_model,train_dataset,user_groups):
     device = 'cuda:'+args.gpu if args.gpu else 'cpu'
@@ -190,7 +195,8 @@ def federated_train_all(args,global_model,train_dataset,user_groups):
         local_weights.append(copy.deepcopy(w))
     return np.array(local_weights)
 
-def federated_test_idx(args,global_model,idxs_users,train_dataset,user_groups):
+def federated_test_idx(args, global_model, idxs_users, 
+                       train_dataset, user_groups):
     device = 'cuda:'+args.gpu if args.gpu else 'cpu'
     global_model.eval()
     list_acc, list_loss = [], []
@@ -211,10 +217,10 @@ def federated_train_worker(args,global_model,idxs,train_dataset,user_groups,loca
         local_model = copy.deepcopy(global_model)
         local_update = LocalUpdate(args=args, dataset=train_dataset,
                                 idxs=user_groups[idx])
-        w,test_loss,init_test_loss = local_update.update_weights(model=local_model)
+        w, test_loss, init_test_loss = local_update.update_weights(model=local_model)
         
         local_states[idx] = copy.deepcopy(local_model.Get_Local_State_Dict())
-        local_weights[idx]=copy.deepcopy(w)
+        local_weights[idx] = copy.deepcopy(w)
         epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
         epoch_local_losses.append(test_loss)
     
