@@ -130,3 +130,5 @@ dmypy.json
 
 /fedcor/data
 /data
+/log
+*.pkl
