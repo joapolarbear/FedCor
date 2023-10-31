@@ -127,7 +127,7 @@ def fl_main():
         _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time)
         return
 
-def select(args, selected_num, epoch, gpr, weights):
+def select(args, selected_num, epoch, gpr, weights, AFL_Valuation, gt_global_losses):
     # Client Selection
     if args.gpr and epoch > args.warmup:
         # FedCor
@@ -248,6 +248,8 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
     
     if args.afl:
         AFL_Valuation = np.array(list_loss)*np.sqrt(weights*len(train_dataset))
+    else:
+        AFL_Valuation = None
 
     # gpr_loss_data = None
     for epoch in tqdm(range(args.epochs)):
@@ -263,7 +265,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
         # Client Selection
         if True:
             selected_num = max(int(args.frac * args.num_users), 1)
-            idxs_users = select(args, selected_num, epoch, gpr, weights)
+            idxs_users = select(args, selected_num, epoch, gpr, weights, AFL_Valuation, gt_global_losses)
             chosen_clients.append(idxs_users)
 
         if True:
