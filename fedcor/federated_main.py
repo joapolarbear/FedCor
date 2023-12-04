@@ -20,7 +20,7 @@ import torch
 from .options import args_parser
 from .update import LocalUpdate, test_inference, train_federated_learning, federated_test_idx
 from .models import MLP, NaiveCNN, BNCNN, ResNet,RNN
-from .utils import get_dataset, average_weights, exp_details,setup_seed
+from .utils import get_dataset, average_weights, exp_details, setup_seed
 from .mvnt import MVN_Test
 from .GPR import Kernel_GPR, Matrix_GPR, Poly_Kernel, SE_Kernel
 
@@ -115,8 +115,8 @@ def fl_main():
         # wandb.run.log_code(".", include_fn=lambda x: 'src/' in x or 'main.py' in x)
 
     # Init device
-    device = 'cuda:'+args.gpu if args.gpu else 'cpu'
-    gpr_device = 'cuda:'+args.gpr_gpu if args.gpr_gpu else 'cpu'
+    device = 'cuda:' + args.gpu if args.gpu else 'cpu'
+    gpr_device = 'cuda:' + args.gpr_gpu if args.gpr_gpu else 'cpu'
     if args.gpu:
         torch.cuda.set_device(device)
         
@@ -162,7 +162,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
     print("Start with Random Seed: {}".format(seed))
     # load dataset and user groups
     train_dataset, test_dataset, user_groups, user_groups_test, \
-        weights = get_dataset(args,seed)
+        weights = get_dataset(args, seed)
     # weights /=np.sum(weights)
     if seed is not None:
         setup_seed(seed)
@@ -242,7 +242,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
     # Test the global model before training
     list_acc, list_loss = federated_test_idx(args, global_model,
                                             list(range(args.num_users)),
-                                            train_dataset,user_groups)
+                                            train_dataset, user_groups)
     gt_global_losses.append(list_loss)
     train_accuracy.append(sum(list_acc)/len(list_acc))
     
@@ -311,7 +311,7 @@ def _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time):
         # calculate test accuracy over all users
         list_acc, list_loss = federated_test_idx(args, global_model,
                                                 list(range(args.num_users)),
-                                                train_dataset,user_groups)
+                                                train_dataset, user_groups)
         gt_global_losses.append(list_loss)
         train_accuracy.append(sum(list_acc)/len(list_acc))
         
