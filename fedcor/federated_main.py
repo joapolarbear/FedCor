@@ -104,9 +104,10 @@ def fl_main():
         args.num_clients_per_round = int(args.frac * args.num_users)
         args.method = "FedCor"
         args.comment = ""
+        exp_name = os.getenv('EXP_NAME_SHORT')
         wandb.init(
-            project=f'AFL-{args.dataset}-{args.num_clients_per_round}-{args.num_available}-{args.total_num_clients}',
-            name=f"{args.method}{args.comment}",
+            project=f'PBFL-{args.dataset}',
+            name=f"{start_time}-{exp_name}",
             config=args,
             dir=wandb_path,
             save_code=True,
