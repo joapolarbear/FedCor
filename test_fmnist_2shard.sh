@@ -33,7 +33,7 @@ python3 main.py --gpu=0 --dataset=fmnist --model=mlp --mlp_layer 64 30 \
     --epochs=500 --num_user=$TOTAL_CLIENT_NUM --frac=0.05 --local_ep=3 --local_bs=64 --lr=5e-3 \
     --schedule 150 300 --lr_decay=0.5 --optimizer=sgd --iid=0 --unequal=0  --verbose=1 --seed 1 2 3 4 5 \
     --power_d --d=10 --shards_per_client=1 \
-    2>&1 | tee log/log_fmnist_powd_1shard.txt
+    2>&1 | tee log/log_fmnist_powd_2shard.txt
 
 
 #### AFL 1 shard fmnist
@@ -43,4 +43,4 @@ python3 main.py --gpu=0 --dataset=fmnist --model=mlp --mlp_layer 64 30  \
     --epochs=500 --num_user=$TOTAL_CLIENT_NUM --frac=0.05 --local_ep=3 --local_bs=64 --lr=5e-3 \
     --schedule 150 300 --lr_decay=0.5 --optimizer=sgd --iid=0 --unequal=0  --verbose=1 --seed 1 2 3 4 5 \
     --afl --shards_per_client=1 \
-    2>&1 | tee log/log_fmnist_afl_1shard.txt
+    2>&1 | tee log/log_fmnist_afl_2shard.txt

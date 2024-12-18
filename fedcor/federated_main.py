@@ -97,6 +97,7 @@ def fl_main():
     gargs = copy.deepcopy(args)
     exp_details(args)
     file_name = ret_filename(args)
+    args.start = time.strftime('%Y%m%d-%H%M%S', time.localtime())
     
     if AVAILABLE_WANDB:
         args.num_available = None
@@ -107,11 +108,11 @@ def fl_main():
         exp_name = os.getenv('EXP_NAME_SHORT')
         wandb.init(
             project=f'PBFL-{args.dataset}',
-            name=f"{start_time}-{exp_name}",
+            name=f"{args.start}-{exp_name}",
             config=args,
             dir=wandb_path,
             save_code=True,
-            mode='offline'
+            mode='online'
         )
         # wandb.run.log_code(".", include_fn=lambda x: 'src/' in x or 'main.py' in x)
 
