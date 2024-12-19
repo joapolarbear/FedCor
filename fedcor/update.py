@@ -211,10 +211,10 @@ def federated_train_worker(args,global_model,idxs,train_dataset,user_groups,loca
         local_model = copy.deepcopy(global_model)
         local_update = LocalUpdate(args=args, dataset=train_dataset,
                                 idxs=user_groups[idx])
-        w,test_loss,init_test_loss = local_update.update_weights(model=local_model)
+        w, test_loss, init_test_loss = local_update.update_weights(model=local_model)
         
         local_states[idx] = copy.deepcopy(local_model.Get_Local_State_Dict())
-        local_weights[idx]=copy.deepcopy(w)
+        local_weights[idx] = copy.deepcopy(w)
         epoch_global_losses.append(init_test_loss)# TAKE CARE: this is the test loss evaluated on the (t-1)-th global weights!
         epoch_local_losses.append(test_loss)
     
