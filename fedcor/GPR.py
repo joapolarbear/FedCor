@@ -173,7 +173,7 @@ class GPR(torch.nn.Module):
                 
         return loss.item()
     
-    def Predict_Loss(self,data,priori_idx,posteriori_idx):
+    def Predict_Loss(self, data, priori_idx, posteriori_idx):
         for p in priori_idx:
             if p in posteriori_idx:
                 posteriori_idx.remove(p) # do not predict the measured idx
@@ -184,7 +184,7 @@ class GPR(torch.nn.Module):
         predict_loss = predict_loss.detach().item()
         return predict_loss,mu_p,sigma_p
         
-    def Select_Clients(self,number=10,epsilon = 0.0,weights = None,Dynamic=False,Dynamic_TH=0.0):
+    def Select_Clients(self, number=10, epsilon = 0.0, weights = None, Dynamic=False, Dynamic_TH=0.0, forbidden_clients=[]):
         """
         Select the clients which may lead to the maximal loss decrease
         Sequentially select the client and update the postieriori
@@ -214,14 +214,15 @@ class GPR(torch.nn.Module):
             remain_clients = list(range(self.num_users))
             selected_clients = []
             for i in range(number):  
-                idx,Sigma,total_loss_decrease = max_loss_decrease_client(remain_clients,Sigma,weights)
-                if Dynamic and -total_loss_decrease<Dynamic_TH:
+                idx, Sigma, total_loss_decrease = max_loss_decrease_client(remain_clients,Sigma,weights)
+                if Dynamic and - total_loss_decrease < Dynamic_TH:
                     break
+                if idx in forbidden_clients:
+                    continue
                 selected_clients.append(idx)
                 remain_clients.remove(idx)
             
             return selected_clients
-    
 
     def Reset_Discount(self):
         self.discount = torch.ones(self.num_users,device=self.device).detach()

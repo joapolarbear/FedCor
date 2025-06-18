@@ -37,6 +37,9 @@ def args_parser():
                         help = 'mu in FedProx')
     parser.add_argument('--dynamic_mu',action = 'store_true',
                         help='use a dynamic mu for FedProx')
+    
+    parser.add_argument('--drop_client', type=int, default=0,
+                        help="Number of clients to randomly drop before each selection")
 
     # GPR arguments
     parser.add_argument('--gpr',action = 'store_true',

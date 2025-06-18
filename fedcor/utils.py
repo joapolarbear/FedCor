@@ -18,6 +18,45 @@ from numpy.random import RandomState
 import random
 
 
+# from fed_cifar100 import FederatedCIFAR100Dataset
+from torch.utils.data import Dataset
+
+
+class WrapCifar100Dataset(Dataset):
+    def __init__(self, origin_dataset, is_train=True):
+        self.origin_dataset = origin_dataset
+        self.is_train = is_train
+        
+        self._key = "train" if is_train else "test"
+        self.num_clients = len(self.origin_dataset[self._key]['data_sizes'])
+        self.total_sample_num = sum(self.origin_dataset[self._key]['data_sizes'])
+        
+        data_size_per_client = [
+            self.origin_dataset[self._key]['data_sizes'][client_id] for client_id in range(self.num_clients)
+        ]
+        self.cu_data_size = np.concatenate(([0], np.cumsum(data_size_per_client)))
+        self.user_groups = dict([
+            (client_id, np.arange(self.cu_data_size[client_id], self.cu_data_size[client_id+1]))
+            for client_id in range(self.num_clients)
+        ])
+        
+    def __len__(self):
+        return self.total_sample_num
+
+    def __getitem__(self, item):
+        client_id = np.searchsorted(self.cu_data_size, item+1) - 1
+        inner_bias = item - self.cu_data_size[client_id]
+        image, label = self.origin_dataset[self._key]['data'][client_id][inner_bias]
+        return image, label
+
+
+def get_cifar100_dataset(data_dir):
+    args.total_num_clients = args.num_user
+    args.batch_size = None
+    _dataset = FederatedCIFAR100Dataset(data_dir, args)
+    train_dataset = WrapCifar100Dataset(_dataset, is_train=True)
+    test_dataset = WrapCifar100Dataset(_dataset, is_train=False)
+    return train_dataset, test_dataset, train_dataset.user_groups, test_dataset.user_groups
 
 
 def setup_seed(seed):
@@ -27,8 +66,7 @@ def setup_seed(seed):
     random.seed(seed)
     # torch.backends.cudnn.deterministic = True
 
-
-def get_dataset(args,seed=None):
+def get_dataset(args, seed=None):
     """ Returns train and test datasets and a user group which is a dict where
     the keys are the user index and the values are the corresponding data for
     each of those users.
@@ -62,8 +100,8 @@ def get_dataset(args,seed=None):
                 raise NotImplementedError()
             else:
                 # Chose euqal splits for every user
-                user_groups = cifar_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
-                user_groups_test = cifar_noniid(test_dataset, args.num_users,args.shards_per_client,rs)
+                user_groups = cifar_noniid(train_dataset, args.num_users, args.shards_per_client,rs)
+                user_groups_test = cifar_noniid(test_dataset, args.num_users, args.shards_per_client,rs)
 
     elif args.dataset == 'mnist' or args.dataset == 'fmnist':
         args.num_classes = 10
@@ -103,7 +141,12 @@ def get_dataset(args,seed=None):
             else:
                 user_groups = mnist_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
                 user_groups_test = mnist_noniid(test_dataset,args.num_users,args.shards_per_client,rs)
-    
+    elif args.dataset == "Cifar100":
+        data_dir = './data'
+        (
+            train_dataset, test_dataset,
+            user_groups, user_groups_test
+        ) = get_cifar100_dataset(data_dir)
     elif args.dataset == 'shake':
         args.num_classes = 80
         data_dir = './data/shakespeare/'
@@ -114,7 +157,6 @@ def get_dataset(args,seed=None):
         data_dir = './data/sent140/'
         user_groups_test={}
         train_dataset,test_dataset,user_groups=sent140(data_dir,args.shards_per_client,rs)
-        
     else:
         raise RuntimeError("Not registered dataset! Please register it in utils.py")
     
@@ -123,8 +165,7 @@ def get_dataset(args,seed=None):
     for i in range(args.num_users):
         weights.append(len(user_groups[i])/len(train_dataset))
     
-    
-    return train_dataset, test_dataset, user_groups, user_groups_test,np.array(weights)
+    return train_dataset, test_dataset, user_groups, user_groups_test, np.array(weights)
 
 
 def average_weights(w,omega=None):

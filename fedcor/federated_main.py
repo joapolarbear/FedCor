@@ -15,22 +15,17 @@ import atexit
 
 import torch
 
-
-
 from .options import args_parser
 from .update import LocalUpdate, test_inference, train_federated_learning, federated_test_idx
 from .models import MLP, NaiveCNN, BNCNN, ResNet,RNN
 from .utils import get_dataset, average_weights, exp_details, setup_seed
 from .mvnt import MVN_Test
-from .GPR import Kernel_GPR, Matrix_GPR, Poly_Kernel, SE_Kernel
+from .GPR import Kernel_GPR, Matrix_GPR, Poly_Kernel, SE_Kernel, GPR
 
 AVAILABLE_WANDB = True
 try:
     import wandb
 except ModuleNotFoundError:
-    AVAILABLE_WANDB = False
-wandb_path = os.environ.get("WANDB_LOG_PATH", "")
-if len(wandb_path) == 0:
     AVAILABLE_WANDB = False
 
 def ret_filename(args):
@@ -106,6 +101,8 @@ def fl_main():
         args.method = "FedCor"
         args.comment = ""
         exp_name = os.getenv('EXP_NAME_SHORT')
+        wandb_path = os.getenv('PBFL_EXP_PATH') + "-wandb"
+        os.makedirs(wandb_path, exist_ok=True)
         wandb.init(
             project=f'PBFL-{args.dataset}',
             name=f"{args.start}-{exp_name}",
@@ -129,34 +126,47 @@ def fl_main():
         _run_with_one_seed(seed, args, device, gpr_device, file_name, start_time)
         return
 
-def select(args, selected_num, epoch, gpr, weights, AFL_Valuation, gt_global_losses):
+def select(args, selected_num, epoch, gpr: GPR, weights, AFL_Valuation, gt_global_losses):
+    
+    if args.drop_client > 0:
+        forbidden_clients = np.random.choice(range(args.num_users), args.drop_client, replace=False)
+    else:
+        forbidden_clients = []
+    candidates = list(set(range(args.num_users)) - set(forbidden_clients))
+    
     # Client Selection
     if args.gpr and epoch > args.warmup:
         # FedCor
-        idxs_users = gpr.Select_Clients(selected_num, args.epsilon_greedy,
-                                        weights, args.dynamic_C,
-                                        args.dynamic_TH)
+        idxs_users = gpr.Select_Clients(
+            selected_num, args.epsilon_greedy,
+            weights, args.dynamic_C,
+            args.dynamic_TH,
+            forbidden_clients=forbidden_clients
+        )
         print("GPR Chosen Clients:",idxs_users)
     elif args.afl:
         # AFL
-        delete_num = int(args.alpha1 * args.num_users)
+        num_clients = len(candidates)
+        delete_num = int(args.alpha1 * num_clients)
         sel_num = int((1 - args.alpha3) * selected_num)
-        tmp_value = np.vstack([np.arange(args.num_users), AFL_Valuation])
+        tmp_value = np.vstack([candidates, AFL_Valuation])
         tmp_value = tmp_value[:, tmp_value[1, :].argsort()]
         prob = np.exp(args.alpha2 * tmp_value[1, delete_num:])
         prob = prob/np.sum(prob)
-        sel1 = np.random.choice(np.array(tmp_value[0, delete_num:], dtype=np.int64), 
-                                sel_num, replace=False, p=prob)
-        remain = set(np.arange(args.num_users)) - set(sel1)
+        sel1 = np.random.choice(
+            np.array(tmp_value[0, delete_num:], dtype=np.int64), 
+            sel_num, replace=False, p=prob
+        )
+        remain = set(candidates) - set(sel1)
         sel2 = np.random.choice(list(remain), selected_num-sel_num, replace = False)
         idxs_users = np.append(sel1, sel2)
     elif args.power_d:
         # Power-of-D-choice
-        A = np.random.choice(range(args.num_users), args.d, replace=False, p=weights)
+        A = np.random.choice(candidates, args.d, replace=False, p=weights)
         idxs_users = A[np.argsort(np.array(gt_global_losses[-1])[A])[-selected_num:]]
     else:
         # Random selection
-        idxs_users = np.random.choice(range(args.num_users), selected_num, replace=False)
+        idxs_users = np.random.choice(candidates, selected_num, replace=False)
     
     return idxs_users
         
