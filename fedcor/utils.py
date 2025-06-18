@@ -5,21 +5,16 @@
 import copy
 import torch
 from torchvision import datasets, transforms
-
-from .sampling import mnist_iid, mnist_noniid, mnist_noniid_unequal
-from .sampling import cifar_iid, cifar_noniid
-from .sampling import Dirichlet_noniid
-from .sampling import shakespeare,sent140
-
-
+from torch.utils.data import Dataset
 import numpy as np
 from numpy.random import RandomState
 # from random import Random
 import random
 
-
-# from fed_cifar100 import FederatedCIFAR100Dataset
-from torch.utils.data import Dataset
+from .sampling import mnist_iid, mnist_noniid, mnist_noniid_unequal
+from .sampling import cifar_iid, cifar_noniid
+from .sampling import Dirichlet_noniid
+from .sampling import shakespeare,sent140
 
 
 class WrapCifar100Dataset(Dataset):
@@ -47,15 +42,16 @@ class WrapCifar100Dataset(Dataset):
         client_id = np.searchsorted(self.cu_data_size, item+1) - 1
         inner_bias = item - self.cu_data_size[client_id]
         image, label = self.origin_dataset[self._key]['data'][client_id][inner_bias]
-        return image, label
+        return image, label.type(torch.LongTensor)  
 
 
-def get_cifar100_dataset(data_dir):
-    args.total_num_clients = args.num_user
+def get_cifar100_dataset(args, data_dir):
+    from pbfl.data.fed_cifar100 import FederatedCIFAR100Dataset
+    args.total_num_clients = args.num_users
     args.batch_size = None
     _dataset = FederatedCIFAR100Dataset(data_dir, args)
-    train_dataset = WrapCifar100Dataset(_dataset, is_train=True)
-    test_dataset = WrapCifar100Dataset(_dataset, is_train=False)
+    train_dataset = WrapCifar100Dataset(_dataset.dataset, is_train=True)
+    test_dataset = WrapCifar100Dataset(_dataset.dataset, is_train=False)
     return train_dataset, test_dataset, train_dataset.user_groups, test_dataset.user_groups
 
 
@@ -141,12 +137,12 @@ def get_dataset(args, seed=None):
             else:
                 user_groups = mnist_noniid(train_dataset, args.num_users,args.shards_per_client,rs)
                 user_groups_test = mnist_noniid(test_dataset,args.num_users,args.shards_per_client,rs)
-    elif args.dataset == "Cifar100":
+    elif args.dataset == "FedCIFAR100":
         data_dir = './data'
         (
             train_dataset, test_dataset,
             user_groups, user_groups_test
-        ) = get_cifar100_dataset(data_dir)
+        ) = get_cifar100_dataset(args, data_dir)
     elif args.dataset == 'shake':
         args.num_classes = 80
         data_dir = './data/shakespeare/'
@@ -160,12 +156,11 @@ def get_dataset(args, seed=None):
     else:
         raise RuntimeError("Not registered dataset! Please register it in utils.py")
     
-    args.num_users=len(user_groups.keys())
-    weights = []
-    for i in range(args.num_users):
-        weights.append(len(user_groups[i])/len(train_dataset))
+    args.num_users = len(user_groups.keys())
+    weights = np.array([len(user_groups[i]) for i in range(args.num_users)])
+    weights = weights / sum(weights)
     
-    return train_dataset, test_dataset, user_groups, user_groups_test, np.array(weights)
+    return train_dataset, test_dataset, user_groups, user_groups_test, weights
 
 
 def average_weights(w,omega=None):

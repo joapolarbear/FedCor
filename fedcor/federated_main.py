@@ -68,16 +68,31 @@ def get_model(args, data_size):
         len_in = 1
         for x in data_size:
             len_in *= x
-            global_model = MLP(dim_in=len_in, dim_hidden=args.mlp_layers if args.model=='mlp' else [],
-                            dim_out=args.num_classes)
+            global_model = MLP(
+                dim_in=len_in, dim_hidden=args.mlp_layers if args.model=='mlp' else [],
+                dim_out=args.num_classes
+            )
     elif args.model == 'resnet':
-        global_model = ResNet(args.depth,args.num_classes)
+        global_model = ResNet(args.depth, args.num_classes)
     elif args.model == 'rnn':
         if args.dataset=='shake':
-            global_model = RNN(256,args.num_classes)
+            global_model = RNN(256, args.num_classes)
         else:
             # emb_arr,_,_= get_word_emb_arr('./data/sent140/embs.json')
-            global_model = RNN(256,args.num_classes,300,True,128)
+            global_model = RNN(256,args.num_classes, 300, True,128)
+    elif args.dataset == 'FedCIFAR100' and args.model == 'ResNet':
+        from pbfl.model.resnet_gn import resnet18
+        import types
+        
+        def Get_Local_State_Dict(self):
+            sd = self.state_dict()
+            for name in list(sd.keys()):
+                if 'weight' in name or 'bias' in name:
+                    sd.pop(name)
+            return sd
+        
+        global_model = resnet18(num_classes=args.num_classes, group_norm=0)
+        global_model.Get_Local_State_Dict = types.MethodType(Get_Local_State_Dict, global_model)
     else:
         exit('Error: unrecognized model')
     return global_model

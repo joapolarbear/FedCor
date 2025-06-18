@@ -16,6 +16,10 @@ from tqdm import tqdm
 
 
 def ce_criterion(pred, target, *args):
+    # print(pred.shape, pred.dtype, pred.device)
+    # print(target.shape, target.dtype, target.device)
+    # print(target)
+    # import pdb; pdb.set_trace()
     ce_loss = F.cross_entropy(pred, target)
     return ce_loss, float(ce_loss)
 
