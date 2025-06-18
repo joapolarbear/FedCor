@@ -177,7 +177,9 @@ def select(args, selected_num, epoch, gpr: GPR, weights, AFL_Valuation, gt_globa
         idxs_users = np.append(sel1, sel2)
     elif args.power_d:
         # Power-of-D-choice
-        A = np.random.choice(candidates, args.d, replace=False, p=weights)
+        _weights = np.array([weights[i] for i in candidates])
+        _weights = _weights / sum(_weights)
+        A = np.random.choice(candidates, args.d, replace=False, p=_weights)
         idxs_users = A[np.argsort(np.array(gt_global_losses[-1])[A])[-selected_num:]]
     else:
         # Random selection
